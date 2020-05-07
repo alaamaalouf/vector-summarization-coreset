@@ -84,10 +84,10 @@ class Compare(object):
     def applySamplingAndAttainError(self, alg, sample_size, sensitivity=None):
         if alg < 2:
             results = [self.computeError(self.sampling_algorithms[0](sample_size, sensitivity)) for i in Utils.REPS]
-            mean_error, mean_time = np.mean([results[i][0] for i in range(len(results))]), \
+            return np.mean([results[i][0] for i in range(len(results))]), \
                                     np.mean([results[i][1] for i in range(len(results))])
         else:
-            mean_error, mean_time = self.computeError(self.sampling_algorithms[alg - 1](sample_size))
+            return self.computeError(self.sampling_algorithms[alg - 1](sample_size))
 
 
     def applyComaprison(self):
@@ -99,11 +99,9 @@ class Compare(object):
 
         for idx, sample_size in enumerate(samples):
             for alg in range(len(self.legend)):
-                if alg < 2:
-                    mean_error[alg, idx], mean_time[alg, idx] =\
-                        self.sampling_algorithms[0](sample_size, all_sensitivity[alg, :])
-                else:
-                    mean_error[alg, idx], mean_time[alg, idx] = self.sampling_algorithms[alg - 1](sample_size)
+                mean_error[alg, idx], mean_time[alg, idx] = self.applySamplingAndAttainError(alg, sample_size,
+                                                                                             all_sensitivity[alg, :]
+                                                                                             if alg < 2 else None)
 
         np.savez(r'results//{}//Results_{}.npz'.format(self.file_name, self.file_name),
                  mean_error=mean_error, mean_time=mean_time)
