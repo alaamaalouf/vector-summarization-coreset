@@ -7,8 +7,7 @@ class FrankWolfeCoreset(object):
         self.P = P
         self.n = P.shape[0]
         self.w = w
-        self.Q = None
-        self.prepareData()
+        self.Q = P.T
         self.epsilon = epsilon
         self.T = int(np.ceil(1.0 / epsilon))
 
@@ -20,8 +19,6 @@ class FrankWolfeCoreset(object):
         if w is not None:
             self.w = w
 
-        self.prepareData()
-
     def computeCoreset(self):
         return self.applyFrankWolfe()
         # u = np.multiply(u, 2 / self.row_norms)
@@ -32,9 +29,9 @@ class FrankWolfeCoreset(object):
         a = cp.Variable(1, name='a')
         a.value = [0.0]
         term = (lambda j, x:
-                cp.sum(cp.multiply(self.Q,
-                                   (np.tile(self.w - x, (1, 3)) - a * np.tile(np.roll(e_1, j) - x, (1, 3))).T),
-                       axis= 1))
+                cp.sum(
+                    cp.multiply(self.Q, (np.tile(self.w - x, (1, self.Q.shape[0])) -
+                                         a * np.tile(np.roll(e_1, j) - x, (1, self.Q.shape[0]))).T), axis=1))
         # term = (lambda j, x: cp.sum(cp.matmul(self.Q, cp.diag(self.w - x - a * (np.roll(e_1, j) - x))), axis=1))
         grad_func = (lambda x: np.dot(np.sum(np.multiply(self.Q, (self.w - x).T),
                                              axis=1)[:, np.newaxis].T, self.Q).flatten())

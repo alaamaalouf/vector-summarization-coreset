@@ -11,6 +11,8 @@ def readDataset(file_name):
     file_path = r'datasets\\' + file_name
     if '.csv' in file_name:
         P = pd.read_csv(file_path).values
+    else:
+        P = np.load(file_path)
 
     return P
 
@@ -24,10 +26,10 @@ def getNormalizedWeightedSet(P, weights):
 
 
 def generateSampleSizes(n):
+    global NUM_SAMPLES
     min_size = int(np.log(n) ** 2)
-    max_size = n//10
-
-    pass
+    max_size = n // 20
+    return np.geomspace(start=min_size, stop=max_size, num=NUM_SAMPLES, dtype=np.int)
 
 
 def createDirectory(directory_name):
