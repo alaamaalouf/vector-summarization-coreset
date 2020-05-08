@@ -22,12 +22,12 @@ class Compare(object):
         self.file_name = file_name.split('.')[0]
         Utils.createDirectory(self.file_name)
         self.sampling_algorithms= [
-            lambda sample_size, sensitivity: self.computeCoreset(self.P, sensitivity, sample_size),
-            lambda sample_size: updated_cara(self.P, self.weights, sample_size),
+            lambda sample_size, sensitivity: self.computeCoreset(self.Q, sensitivity, sample_size),
+            lambda sample_size: updated_cara(self.Q, self.W, sample_size),
             lambda sample_size: sparseEpsCoreset(self.Q, self.W, 1.0/sample_size)
         ]
 
-        self.opt_value = Compare.computeOptValue(self.P, self.weights)
+        self.opt_value = Compare.computeOptValue(self.Q, self.W)
 
     def tightBoundSensitivity(self):
         return np.multiply(self.W / np.sum(self.W), (1 + np.sum(self.Q ** 2, 1) / self.sigma))
@@ -67,7 +67,7 @@ class Compare(object):
         S = self.P[indxs, :]
 
         # Compute the weights of each point: w_i = (number of times i is sampled) / (sampleSize * prob(p_i))
-        weights = np.asarray(np.multiply(self.weights[indxs], hist[indxs]), dtype=float).flatten()
+        weights = np.asarray(np.multiply(self.W[indxs], hist[indxs]), dtype=float).flatten()
 
         # Compute the weights of the coreset
         weights = np.multiply(weights, 1.0 / (probability[indxs] * sampleSize))
@@ -81,7 +81,7 @@ class Compare(object):
         start_time = time.time()
         mean_on_coreset = np.average(weighted_set[0], axis=0, weights=weighted_set[1].flatten())
 
-        return Compare.computeOnAllData(self.P, self.weights, mean_on_coreset) / self.opt_value - 1,\
+        return Compare.computeOnAllData(self.Q, self.W, mean_on_coreset) / self.opt_value - 1,\
                time.time() - start_time + weighted_set[2]
 
     def applySamplingAndAttainError(self, alg, sample_size, sensitivity=None):
