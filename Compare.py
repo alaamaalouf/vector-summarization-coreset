@@ -12,6 +12,7 @@ from FastEpsCoreset import sparseEpsCoreset
 class Compare(object):
 
     computeOptValue = (lambda P, w: np.sum(np.multiply(w, np.sum((P - np.average(P, axis=0, weights=w)) ** 2, 1))))
+    computeOnAllData = (lambda P,w,q: np.sum(np.multiply(w, np.sum((P - q) ** 2, 1))))
 
     def __init__(self, file_name):
         self.P = Utils.readDataset(file_name)
@@ -78,7 +79,9 @@ class Compare(object):
     def computeError(self, weighted_set):
 
         start_time = time.time()
-        return Compare.computeOptValue(weighted_set[0], weighted_set[1].flatten()) / self.opt_value - 1,\
+        mean_on_coreset = np.average(weighted_set[0], axis=0, weights=weighted_set[1].flatten())
+
+        return Compare.computeOnAllData(self.P, self.weights, mean_on_coreset) / self.opt_value - 1,\
                time.time() - start_time + weighted_set[2]
 
     def applySamplingAndAttainError(self, alg, sample_size, sensitivity=None):
@@ -112,9 +115,6 @@ class Compare(object):
         file_name = 'Synthetic.npy'
         main_runner = Compare(file_name)
         main_runner.applyComaprison()
-
-
-
 
 if __name__ == '__main__':
     Compare.main()

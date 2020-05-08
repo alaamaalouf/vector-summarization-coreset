@@ -8,7 +8,7 @@ import operator
 
 
 def fastEpsCoreset(P, w, eps):
-    if P.shape[0] <= 2 * np.log(P.shape[0]) / eps:
+    if P.shape[0] <= 1 / eps:
         return P, w
 
     k = int(2 * np.log(P.shape[0]) / eps)
@@ -41,6 +41,7 @@ def sparseEpsCoreset(P, w, eps, faster=True):
     row_norms = np.expand_dims(np.linalg.norm(P_prime, ord=2, axis=1) ** 2, 1)
     P_prime = np.multiply(P_prime, 1/row_norms)
     w_prime = np.multiply(w, row_norms) / 2
+
     if faster:
         S, u = fastEpsCoreset(np.hstack((P_prime, np.arange(P_prime.shape[0], dtype=np.int)[:, np.newaxis])),
                               w_prime.flatten(), eps)
@@ -48,7 +49,7 @@ def sparseEpsCoreset(P, w, eps, faster=True):
         S, u = FWC.FrankWolfeCoreset(P_prime, w_prime, eps).computeCoreset()
 
     u = np.multiply(u, 2 / row_norms[S[:, -1].astype(np.int)]).flatten()
-    return S if not faster else S[:, :-1], u, time.time() - start_time
+    return P if not faster else P[S[:, -1].astype(np.int), :], u, time.time() - start_time
 
 
 #     assert (np.linalg.norm(np.sum(np.multiply(P_prime, np.multiply(w_prime - x_k, 2 / self.row_norms).T), axis=1))
