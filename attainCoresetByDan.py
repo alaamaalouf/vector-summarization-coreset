@@ -4,26 +4,75 @@ from scipy.linalg import null_space
 import FrankWolfeCoreset as FWC
 import copy
 
-def checkIfPointOnSegmen(p, start_line, end_line):
-	v = (p - end_line) / np.linalg.norm(p - end_line)
-	z = (start_line - end_line) / np.linalg.norm(start_line - end_line)
 
-	if np.linalg.norm(v-z) <= 1e-10 or np.linalg.norm(v+z) <= 1e-10:
-		return True
-	
+SMALL_NUMBER = 1e-7
+
+
+def checkIfPointsAreBetween(p, start_line, end_line):
+	return (np.all(p <= end_line) and np.all(p >= start_line)) or (np.all(p <= start_line) and np.all(p >= end_line))
+
+
+def checkIfPointOnSegment(p, start_line, end_line, Y):
+	if checkIfPointsAreBetween(p, start_line, end_line):
+		_, D, V = np.linalg.svd(np.vstack((np.zeros(start_line.shape), end_line-start_line)))
+		if np.linalg.norm(np.dot(p - start_line, Y)) < 1e-11:
+			return True
 	return False
 
 
-def attainCoresetByDan(P, u, eps):
+def attainCoresetByDanV2(P, u, eps):
+	n, d = P.shape
+	j = 0
+	c = P[j, :]
+	w = np.empty((n, ))
+	w[j] = 1
+	num_iter = 1
+	m = 1
+
+	assert(np.all(np.sum(P ** 2, 1) - 1 <= SMALL_NUMBER), 'The data is not properly scaled')
+
+	for iter in range(1, int(1/eps)):
+		num_iter += 1
+		D = np.dot(P, c)
+		D[D <= SMALL_NUMBER] = 0
+		j = np.argmin(D)
+		p = P[j, :]
+
+		norm_c = np.linalg.norm(c)
+		norm_p = np.linalg.norm(p)
+		cp = p.dot(c)
+		norm_c_p = np.sqrt(norm_p **2 + norm_c **2 - 2 * cp)
+		assert(np.abs(norm_c_p - np.linalg.norm(c-p)) <= SMALL_NUMBER, 'Bug')
+
+		v = p - c
+		c_1 = p - (v / np.linalg.norm(v)) * p.dot(v / np.linalg.norm(v))
+
+		norm_c_1 = np.linalg.norm(c_1)
+		alpha = np.linalg.norm(c - c_1) / norm_c_p
+
+		assert(alpha< 1, 'Bug')
+
+		w = w * (1 - np.abs(alpha))
+		w[j] += alpha
+		w /= np.sum(w)
+
+		c = c_1
+
+	return w
+
+
+
+
+def attainCoresetByDanV1(P, u, eps):
 	E_u = np.sum(np.multiply(P, u), axis=0)
 	x = np.sum(np.multiply(u.flatten(), np.sqrt(np.sum((P - E_u) ** 2,axis=1))))
 	lifted_P = np.hstack((P - E_u, x * np.ones((P.shape[0], 1))))
-	v = np.sum(np.multiply(u.flatten(), np.sqrt(np.sum(Q**2, axis=1))))
-	Q = np.multiply(P, 1/np.linalg.norm(lifted_P, ord=2, axis=1)[:, np.newaxis])
+	v = np.sum(np.multiply(u.flatten(), np.sqrt(np.sum(lifted_P**2, axis=1))))
+	Q = np.multiply(lifted_P, 1/np.linalg.norm(lifted_P, ord=2, axis=1)[:, np.newaxis])
 	s = np.multiply(u.flatten(), 1/v * np.linalg.norm(lifted_P, ord=2, axis=1))
 
-	last_entry_vec = np.zeros(1, lifted_P.shape[1])
-	last_entry_vec[-1] = x / v
+	last_entry_vec = np.zeros((1, lifted_P.shape[1]))
+	last_entry_vec[0, -1] = x / v
 
 	H = Q - last_entry_vec
 
@@ -33,13 +82,14 @@ def attainCoresetByDan(P, u, eps):
 	beta = int(np.ceil(alpha / eps))
 	h = np.empty((beta, H.shape[1]))
 	c_i = copy.deepcopy(h)
-	c_i[0,:] = np.random.choice(np.arange(P.shape[0]))
+	c_i[0, :] = np.random.choice(np.arange(P.shape[0]))
 	origin = np.zeros((H.shape[1], ))
 	for i in range(beta-1):
 		h[i, :] = H[np.argmax(np.linalg.norm(H - c_i[i, :], ord=2, axis=1)), :]
-		orth_line_segment = null_space(h[i, :] - c_i[i, :])
-		project_origin = np.dot(origin - c_i[i, :], orth_line_segment)
-		if checkIfPointOnSegmen(project_origin, c_i[i, :], h[i, :]):
+		_, D, V = np.linalg.svd(np.vstack((np.zeros(h[i, :].shape), h[i, :] - c_i[i, :])))
+		orth_line_segment = null_space(V[np.where(D > 1e-11)[0], :])
+		project_origin = -np.dot(origin - c_i[i, :], orth_line_segment.dot(orth_line_segment.T))
+		if checkIfPointOnSegment(project_origin, c_i[i, :], h[i, :], orth_line_segment):
 			c_i[i+1, :] = project_origin
 		else:
 			dist1, dist2 = np.linalg.norm(project_origin - c_i[i, :]), np.linalg.norm(project_origin - h[i, :])
@@ -57,7 +107,7 @@ def attainCoresetByDan(P, u, eps):
 
 if __name__ == '__main__':
 	n = 1000
-	d = 10
+	d = 1
 	P = np.random.randn(n, d)
 	w = np.ones((n, 1)) / n
 	P = P - np.mean(P, 0)
