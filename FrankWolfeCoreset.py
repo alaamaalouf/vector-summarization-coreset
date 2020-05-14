@@ -44,7 +44,7 @@ class FrankWolfeCoreset(object):
                                              axis=1)[:, np.newaxis].T, self.Q).flatten())
         
         vals = np.empty(self.n, )
-        t = time.time()
+        # t = time.time()
         mean_diff = np.sum(np.einsum('ij,j->ij', self.Q, self.w.flatten()), axis=1)
         #v = np.sum(self.Q, axis=1)
         
@@ -52,7 +52,7 @@ class FrankWolfeCoreset(object):
             mean_diff -= self.Q[:, i]
             vals[i] = -np.linalg.norm(mean_diff)
             mean_diff += self.Q[:, i]
-        print (time.time() - t)
+        # print (time.time() - t)
 
         j = np.argmax(vals)
         x_k = np.roll(self.e_1, j)
