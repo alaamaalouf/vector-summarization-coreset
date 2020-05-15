@@ -76,7 +76,8 @@ def optimalityCondition(n, k, eps):
 def fastEpsCoreset(P, w, eps, dtype=np.float):
     n, d = P.shape
     k = np.ceil(2 * np.log2(n) / eps)
-
+    Q_P = copy.deepcopy(P)
+    Q_w = copy.deepcopy(w)
 
     if n < np.ceil(k/2):
         return P, w
@@ -110,11 +111,11 @@ def fastEpsCoreset(P, w, eps, dtype=np.float):
             groups_means = np.multiply(groups_means, c[:, np.newaxis])
             Cara_p, Cara_w_idx = FWC.FrankWolfeCoreset(groups_means, group_weigts[:, np.newaxis], eps/np.log2(n)).computeCoreset()
 
-            assert(abs(np.sum(Cara_w_idx) - 1) <= 1e-11, 'Bugzy')
-            mean_before_FW = np.average(groups_means, weights=group_weigts, axis=0)
-            mean_after_FW = np.average(Cara_p, weights=Cara_w_idx.flatten(), axis=0)
+            # assert(abs(np.sum(Cara_w_idx) - 1) <= 1e-11, 'Bugzy')
+            # mean_before_FW = np.average(groups_means, weights=group_weigts, axis=0)
+            # mean_after_FW = np.average(Cara_p, weights=Cara_w_idx.flatten(), axis=0)
 
-            print('Difference: {}'.format(np.linalg.norm(mean_after_FW - mean_before_FW)))
+            # print('Difference: {}'.format(np.linalg.norm(mean_after_FW - mean_before_FW)))
 
             IDX = np.nonzero(Cara_w_idx)[0]
 
@@ -126,7 +127,7 @@ def fastEpsCoreset(P, w, eps, dtype=np.float):
                           out=np.zeros_like(Cara_w_idx[IDX]), where=group_weigts[IDX, np.newaxis] != 0)
 
             new_w = (w_groups[IDX] * c).reshape(-1, 1)
-            print('difference between two consecutive means: {}'.format(np.linalg.norm(np.average(OLD_P, weights=OLD_W.flatten(), axis=0) - np.average(new_P, weights=new_w.flatten(), axis=0))))
+            # print('difference between two consecutive means: {}'.format(np.linalg.norm(np.average(OLD_P, weights=OLD_W.flatten(), axis=0) - np.average(new_P, weights=new_w.flatten(), axis=0))))
 
             OLD_P = new_P
             OLD_W = new_w
@@ -149,7 +150,14 @@ def fastEpsCoreset(P, w, eps, dtype=np.float):
             idx_group = new_idx_array.reshape(current_m, chunk_size)
             ###########################################################
     if True:
-        _, weights = FWC.FrankWolfeCoreset(new_P, new_w, eps).computeCoreset()
+        # old_mean = np.average(new_P, weights=new_w.flatten(), axis=0)
+        # print('Difference between mean of all data with mean before last compression: {}'.format(
+        #     np.linalg.norm(np.average(Q_P, weights=Q_w.flatten(), axis=0) - old_mean)))
+        # assert(abs(np.sum(new_w) - 1) <= 1e-11, 'sum of weights must be 1!')
+        _, weights = FWC.FrankWolfeCoreset(new_P, new_w, eps/1.5).computeCoreset()
+        # assert (abs(np.sum(weights) - 1) <= 1e-11, 'sum of weights after compression must be 1!')
+        # new_mean = np.average(new_P, weights=weights.flatten(), axis=0)
+        # print('Differnce between last means: {}'.format(np.linalg.norm(old_mean - new_mean)))
         idxs = np.where(weights > 0)[0]
         idxs = idxs[np.where(new_idx_array[idxs] < n)[0]].flatten()
         return new_P[idxs], weights[idxs], new_idx_array[idxs].astype(int)
@@ -167,11 +175,15 @@ def sparseEpsCoreset(P, w, eps, faster=True):
     row_norms = np.expand_dims(np.linalg.norm(P_prime, ord=2, axis=1) ** 2, 1)
     P_prime = np.multiply(P_prime, 1/row_norms)
     w_prime = np.multiply(w, row_norms) / 2
-
+    old_mean = np.average(P_prime, weights=w_prime.flatten(), axis=0)
     if faster:
-        _, u, idxs = fastEpsCoreset(P_prime,  w_prime, eps/2)
+        S, u, idxs = fastEpsCoreset(P_prime,  w_prime, eps/2)
+        new_mean = np.average(S, weights=u.flatten(), axis=0)
+        print('Diference bwteen means of P_prime Faster: {}'.format(np.linalg.norm(new_mean - old_mean)))
     else:
         _, u = FWC.FrankWolfeCoreset(P_prime, w_prime, eps).computeCoreset()
+        new_mean = np.average(P_prime, weights=u.flatten(), axis=0)
+        print('Diference bwteen means of P_prime using vanila Frank Wolfe: {}'.format(np.linalg.norm(new_mean - old_mean)))
 
     # S = P if not faster else P[idxs.flatten(), :]
     if faster:

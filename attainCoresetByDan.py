@@ -105,10 +105,10 @@ def attainCoresetByDanV1(P, u, eps):
 
 
 if __name__ == '__main__':
-    n = 100000
+    n = 600000
     d = 40
-    # P = np.random.randn(n, d) * 100
-    P = np.load('Synthetic.npy')
+    P = np.random.randn(n, d) * 1000
+    # P = np.load('Synthetic.npy')
     w = np.ones((n, 1)) / n
     P = P - np.mean(P, 0)
     P = P / np.sqrt(np.sum(np.multiply(w.flatten(), np.sum(P ** 2, axis=1))))
@@ -117,14 +117,14 @@ if __name__ == '__main__':
     eps = 0.1
     for i in range(1):
         S, u, ts = sparseEpsCoreset(P, w, eps, faster=False)
-        assert (abs(np.sum(u) - 1) <= 1e-11, 'Bugzy in SLOW!')
+        # assert (abs(np.sum(u) - 1) <= 1e-11, 'Bugzy in SLOW!')
         print('n : {}, u:{}, real_n: {}'.format(S.shape[0], u.shape[0], np.count_nonzero(u.flatten())))
 
         print('Our done in {:.4f}'.format(ts))
         print('error with our slow : {}'.format(
             np.linalg.norm(np.average(P, weights=w.flatten(), axis=0) - np.average(S, weights=u.flatten(), axis=0))**Z))
         S, u, ts = sparseEpsCoreset(P, w, eps, faster=True)
-        assert (abs(np.sum(u) - 1) <= 1e-11, 'Bugzy in FAST!')
+        # assert (abs(np.sum(u) - 1) <= 1e-11, 'Bugzy in FAST!')
         print('Our fast done in {:.4f}'.format(ts))
         print('n : {}, u:{}, real_n: {}'.format(S.shape[0], u.shape[0], np.count_nonzero(u)))
         print('error with our fast {}'.format(
