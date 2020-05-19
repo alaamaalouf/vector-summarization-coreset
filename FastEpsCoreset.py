@@ -167,6 +167,34 @@ def fastEpsCoreset(P, w, eps, dtype=np.float):
     return new_P[idx], new_w[idx], new_idx_array.reshape(-1)[idx].astype(int).flatten()
 
 
+
+def svdCoreset(P, w, k, eps):
+    U, D, _ = np.linalg.svd(P, full_matrices=False)
+    D_k = D[k:]
+
+    U[k:, k:] = np.multiply(U[k:, k:], D_k[np.newaxis, :]) / np.linalg.norm(D_k, ord=2)
+    V = np.hstack((U, np.ones((U.shape[0], 1))/U.shape[0]))
+    Q = np.einsum('ij...,i...->ij...', V, V).flatten().reshape(V.shape[0], V.shape[1] ** 2)
+    u = weakFrankWolfeAlgorithm(Q, w, eps/ (5 * k))
+
+    val = np.linalg.norm(np.sum(Q - np.multiply(u.flatten()[:, np.newaxis], Q), axis=0), ord=2)
+    assert(val <= eps)
+    return u
+
+def weakFrankWolfeAlgorithm(P, w, eps):
+    row_norms = np.linalg.norm(P, ord=2, axis=1)[:, np.newaxis]
+    Q = np.divide(P, row_norms)
+    if w.ndim < 2:
+        w = w[:, np.newaxis]
+    w_prime = np.multiply(w, row_norms) / np.sum(np.multiply(row_norms, w))
+
+    _, u = FWC.FrankWolfeCoreset(Q, w_prime, eps).computeCoreset()
+    u = np.divide(u.flatten(), row_norms.flatten()) * np.sum(np.multiply(row_norms, w))
+    return u
+
+
+
+
 def sparseEpsCoreset(P, w, eps, faster=True):
     start_time = time.time()
     if w.ndim < 2:
@@ -203,9 +231,10 @@ def sparseEpsCoreset(P, w, eps, faster=True):
 
 
 if __name__ == '__main__':
-    P = np.random.rand(10000, 3)
+    P = np.random.rand(1000, 4)
     w = np.ones((P.shape[0], 1))
-    S, u , time_taken = sparseEpsCoreset(P, w, 1/5, True)
-    print('S computed in {:.4f}'.format(time_taken))
+    # S, u , time_taken = sparseEpsCoreset(P, w, 1/5, True)
+    svdCoreset(P, w, 2, 1/5)
+    # print('S computed in {:.4f}'.format(time_taken))
 
 
