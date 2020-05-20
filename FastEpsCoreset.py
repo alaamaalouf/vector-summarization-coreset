@@ -5,6 +5,7 @@ import time
 import Utils
 import functools
 import operator
+from scipy.stats import ortho_group
 
 N = None
 largest_N = None
@@ -167,51 +168,50 @@ def fastEpsCoreset(P, w, eps, dtype=np.float):
     return new_P[idx], new_w[idx], new_idx_array.reshape(-1)[idx].astype(int).flatten()
 
 
-
 def svdCoreset(P, w, k, eps):
     U, D, _ = np.linalg.svd(P, full_matrices=False)
     D_k = D[k:]
 
     U[k:, k:] = np.multiply(U[k:, k:], D_k[np.newaxis, :]) / np.linalg.norm(D_k, ord=2)
-    V = np.hstack((U, np.ones((U.shape[0], 1))/U.shape[0]))
+    V = np.hstack((U, np.ones((U.shape[0], 1)))) if False else U
     Q = np.einsum('ij...,i...->ij...', V, V).flatten().reshape(V.shape[0], V.shape[1] ** 2)
-    u = weakFrankWolfeAlgorithm(Q, w, eps/ (5 * k))
+    S, u, _, idxs = sparseEpsCoreset(Q, w, (eps / (5 * k)) ** 2 / 16, faster=True)
 
-    val = np.linalg.norm(np.sum(Q - np.multiply(u.flatten()[:, np.newaxis], Q), axis=0), ord=2)
+    W = np.zeros((U.shape[0], ))
+    W[idxs.flatten().astype(np.int)] = u.flatten()
+
+    X = ortho_group.rvs(U.shape[1])[:, :k]
+
+    val = np.abs(1 - np.linalg.norm(np.dot(np.multiply(W[:, np.newaxis], P), X)) / np.linalg.norm(np.dot(P, X)))
+    # val = np.linalg.norm(np.sum(Q, axis=1) - np.average(S, weights=u.flatten(), axis=0), ord=2)
     assert(val <= eps)
     return u
 
-def weakFrankWolfeAlgorithm(P, w, eps):
-    row_norms = np.linalg.norm(P, ord=2, axis=1)[:, np.newaxis]
-    Q = np.divide(P, row_norms)
-    if w.ndim < 2:
-        w = w[:, np.newaxis]
-    w_prime = np.multiply(w, row_norms) / np.sum(np.multiply(row_norms, w))
 
-    _, u = FWC.FrankWolfeCoreset(Q, w_prime, eps).computeCoreset()
-    u = np.divide(u.flatten(), row_norms.flatten()) * np.sum(np.multiply(row_norms, w))
-    return u
-
-
-
-
-def sparseEpsCoreset(P, w, eps, faster=True):
+def sparseEpsCoreset(Q, m, eps, faster=True):
     start_time = time.time()
-    if w.ndim < 2:
-        w = w[:, np.newaxis]
+
+    # Preprocessing step
+    sum_of_m = np.linalg.norm(m.flatten(), ord=1)
+    w = (m.flatten() / sum_of_m)[:, np.newaxis]
+    mu_m = np.sum(np.multiply(w, Q), axis=0)  # compute the mean
+    sigma_m = np.sqrt(np.sum(np.multiply(w.flatten(), np.sum((Q - mu_m[np.newaxis, :]) ** 2, axis=1))))  # comute the standard deviation
+    P = Q - mu_m[np.newaxis, :] / sigma_m
+
+    # shifting the points
     P_prime = np.hstack((P, np.ones((P.shape[0], 1))))
     row_norms = np.expand_dims(np.linalg.norm(P_prime, ord=2, axis=1) ** 2, 1)
     P_prime = np.multiply(P_prime, 1/row_norms)
     w_prime = np.multiply(w, row_norms) / 2
-    old_mean = np.average(P_prime, weights=w_prime.flatten(), axis=0)
+    # old_mean = np.average(P_prime, weights=w_prime.flatten(), axis=0)
     if faster:
         S, u, idxs = fastEpsCoreset(P_prime,  w_prime, eps/2)
-        new_mean = np.average(S, weights=u.flatten(), axis=0)
-        print('Diference bwteen means of P_prime Faster: {}'.format(np.linalg.norm(new_mean - old_mean)))
+        # new_mean = np.average(S, weights=u.flatten(), axis=0)
+        # print('Diference bwteen means of P_prime Faster: {}'.format(np.linalg.norm(new_mean - old_mean)))
     else:
         _, u = FWC.FrankWolfeCoreset(P_prime, w_prime, eps).computeCoreset()
-        new_mean = np.average(P_prime, weights=u.flatten(), axis=0)
-        print('Diference bwteen means of P_prime using vanila Frank Wolfe: {}'.format(np.linalg.norm(new_mean - old_mean)))
+        # new_mean = np.average(P_prime, weights=u.flatten(), axis=0)
+        # print('Diference bwteen means of P_prime using vanila Frank Wolfe: {}'.format(np.linalg.norm(new_mean - old_mean)))
 
     # S = P if not faster else P[idxs.flatten(), :]
     if faster:
@@ -222,7 +222,7 @@ def sparseEpsCoreset(P, w, eps, faster=True):
         u= np.multiply(u.flatten(), 2 / row_norms.flatten())
 
     # u = np.multiply(u.flatten(), 2 / (row_norms.flatten() if not faster else row_norms.flatten()[idxs.flatten()]))
-    return S, u, time.time() - start_time
+    return S, u * sum_of_m, time.time() - start_time, idxs
 
 
 #     assert (np.linalg.norm(np.sum(np.multiply(P_prime, np.multiply(w_prime - x_k, 2 / self.row_norms).T), axis=1))
@@ -231,10 +231,20 @@ def sparseEpsCoreset(P, w, eps, faster=True):
 
 
 if __name__ == '__main__':
-    P = np.random.rand(1000, 4)
+    P = np.random.rand(1000000, 4)
     w = np.ones((P.shape[0], 1))
     # S, u , time_taken = sparseEpsCoreset(P, w, 1/5, True)
-    svdCoreset(P, w, 2, 1/5)
+    svdCoreset(P, w, 2, 0.9)
     # print('S computed in {:.4f}'.format(time_taken))
 
 
+# def weakFrankWolfeAlgorithm(P, w, eps):
+#     row_norms = np.linalg.norm(P, ord=2, axis=1)[:, np.newaxis]
+#     Q = np.divide(P, row_norms)
+#     if w.ndim < 2:
+#         w = w[:, np.newaxis]
+#     w_prime = np.multiply(w, row_norms) / np.sum(np.multiply(row_norms, w))
+#
+#     _, u = FWC.FrankWolfeCoreset(Q, w_prime, eps).computeCoreset()
+#     u = np.divide(u.flatten(), row_norms.flatten()) * np.sum(np.multiply(row_norms, w))
+#     return u
