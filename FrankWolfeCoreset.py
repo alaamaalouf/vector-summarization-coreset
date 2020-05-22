@@ -57,11 +57,23 @@ class FrankWolfeCoreset(object):
         j = np.argmax(vals)
         x_k = np.roll(self.e_1, j)
 
+        counts = np.zeros(x_k.shape).flatten()
         for i in range(self.T):
             j = np.argmax(grad_func(x_k))
-            res = minimize_scalar(self.term, bounds=(0.0,1.0), method='bounded', args=(self.Q, x_k, j))
-            
-            x_k = x_k + res.x * (np.roll(self.e_1, j) - x_k)
+
+            counts[j] += 1
+            # st = time.time()
+            # res = minimize_scalar(self.term, bounds=(0.0,1.0), method='bounded', args=(self.Q, x_k, j))
+            # print('Optimization took {:.4f} secs'.format(time.time() - st))
+
+            # val_1 =  np.sum(np.multiply(self.w - x_k), self.Q)
+            # st = time.time()
+            alpha = -np.dot(np.sum(np.einsum('ij,j->ij', self.Q, (x_k-np.roll(self.e_1, j)).flatten()), axis=1),
+                           np.sum(np.einsum('ij,j->ij', self.Q, (self.w - x_k).flatten()), axis=1)) \
+                    / np.linalg.norm(np.sum(np.einsum('ij,j->ij', self.Q, (x_k-np.roll(self.e_1, j)).flatten()),
+                                            axis=1)) ** 2
+            # print('Analytically took {:.4f}'.format(time.time() - st))
+            x_k = x_k + alpha * (np.roll(self.e_1, j) - x_k)
 
         return self.P, x_k
 

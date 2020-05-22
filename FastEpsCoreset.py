@@ -28,7 +28,7 @@ def fastEpsCoresetOLD(P, w, eps, all_idxs):
         else:
             _, weights = FWC.FrankWolfeCoreset(P, w, eps).computeCoreset()
             idxs = np.where(weights>0)[0]
-        return P[idxs],weights[idxs],all_idxs[idxs]#P[np.where(all_idxs[idxs] < largest_N)[0], :], w[np.where(all_idxs[idxs] < largest_N)[0], 0], all_idxs[np.where(all_idxs[idxs] < largest_N)[0]]
+        return P[idxs],weights[idxs], all_idxs[idxs]#P[np.where(all_idxs[idxs] < largest_N)[0], :], w[np.where(all_idxs[idxs] < largest_N)[0], 0], all_idxs[np.where(all_idxs[idxs] < largest_N)[0]]
 
     n,d = P.shape
 
@@ -175,7 +175,7 @@ def svdCoreset(P, w, k, eps):
     U[k:, k:] = np.multiply(U[k:, k:], D_k[np.newaxis, :]) / np.linalg.norm(D_k, ord=2)
     V = np.hstack((U, np.ones((U.shape[0], 1)))) if False else U
     Q = np.einsum('ij...,i...->ij...', V, V).flatten().reshape(V.shape[0], V.shape[1] ** 2)
-    S, u, _, idxs = sparseEpsCoreset(Q, w, (eps / (5 * k)) ** 2 / 16, faster=True)
+    S, u, _, idxs = sparseEpsCoreset(Q, w, (eps / (5 * k)) ** 2 / 16, faster=False)
 
     W = np.zeros((U.shape[0], ))
     W[idxs.flatten().astype(np.int)] = u.flatten()
@@ -194,9 +194,9 @@ def sparseEpsCoreset(Q, m, eps, faster=True):
     # Preprocessing step
     sum_of_m = np.linalg.norm(m.flatten(), ord=1)
     w = (m.flatten() / sum_of_m)[:, np.newaxis]
-    mu_m = np.sum(np.multiply(w, Q), axis=0)  # compute the mean
+    mu_m = np.sum(np.multiply(w, Q), axis=0) # compute the mean
     sigma_m = np.sqrt(np.sum(np.multiply(w.flatten(), np.sum((Q - mu_m[np.newaxis, :]) ** 2, axis=1))))  # comute the standard deviation
-    P = Q - mu_m[np.newaxis, :] / sigma_m
+    P = (Q - mu_m[np.newaxis, :]) / sigma_m
 
     # shifting the points
     P_prime = np.hstack((P, np.ones((P.shape[0], 1))))
