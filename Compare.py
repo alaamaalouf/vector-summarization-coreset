@@ -7,27 +7,41 @@ from scipy.spatial import distance_matrix
 from AlaaBoost import updated_cara
 # import FOR17
 from FastEpsCoreset import sparseEpsCoreset
+from attainCoresetByDan import attainCoresetByDanV1
 
 
 class Compare(object):
 
     computeOptValue = (lambda P, w: np.sum(np.multiply(w, np.sum((P - np.average(P, axis=0, weights=w)) ** 2, 1))))
     computeOnAllData = (lambda P,w,q: np.sum(np.multiply(w, np.sum((P - q) ** 2, 1))))
+    computeOptValueSVD = (lambda P, w,k: np.sqrt(np.sum(np.linalg.svd(np.multiply(w[:, np.newaxis], P), full_matrices=False)[1][:k]**2)))
 
-    def __init__(self, file_name):
+    def __init__(self, file_name, compare_SVD=False, k=2):
         self.P = Utils.readDataset(file_name)
         self.weights = np.ones((self.P.shape[0], ))
-        self.Q, self.W, self.mu, self.sigma = Utils.getNormalizedWeightedSet(self.P, self.weights)
-        self.legend = ['Uniform Sampling', 'Sensitivity Sampling', 'Caratheodory', 'Our coreset']
+        if not self.compare_SVD:
+            self.Q, self.W, self.mu, self.sigma = Utils.getNormalizedWeightedSet(self.P, self.weights)
+        else:
+            self.Q = Utils.preprocessDataForSVDComaprison(self.P, self.k)
+            self.W = np.ones((self.Q.shape[0], ))
+            self.sigma = 1
+        self.legend = ['Uniform Sampling', 'Sensitivity Sampling', 'Caratheodory', 'Dan ICML2016',
+                       'Our slow coreset', 'Our fast Coreset']
+
         self.file_name = file_name.split('.')[0]
         Utils.createDirectory(self.file_name)
-        self.sampling_algorithms= [
+        self.sampling_algorithms = [
             lambda sample_size, sensitivity: self.computeCoreset(self.Q, sensitivity, sample_size),
             lambda sample_size: updated_cara(self.Q, self.W, sample_size),
             lambda sample_size: sparseEpsCoreset(self.Q, self.W, 1.0/sample_size)
         ]
 
-        self.opt_value = Compare.computeOptValue(self.Q, self.W)
+        if self.compare_SVD:
+            self.legend = self.legend[4:]
+            self.sampling_algorithms = self.sampling_algorithms[3:]
+            self.opt_value = Compare.computeOptValueSVD(self.P, self.W, self.k)
+        else:
+            self.opt_value = Compare.computeOptValue(self.Q, self.W)
 
     def tightBoundSensitivity(self):
         return np.multiply(self.W / np.sum(self.W), (1 + np.sum(self.Q ** 2, 1) / self.sigma))
@@ -77,25 +91,29 @@ class Compare(object):
         return S, weights, time_taken
 
     def computeError(self, weighted_set):
-
         start_time = time.time()
-        mean_on_coreset = np.average(weighted_set[0], axis=0, weights=weighted_set[1].flatten())
+        if self.compare_SVD:
+            W = np.zeros((self.P.shape[0], ))
+            W[weighted_set[-1]] = weighted_set[1]
+            _, _, V = np.linalg.svd(np.multiply(W[:, np.newaxis], self.P), full_matrices=False)
+            return np.linalg.norm(np.dot(self.P, V[:self.k, :].T),ord='fro') / self.opt_value - 1
+        else:
+            mean_on_coreset = np.average(weighted_set[0], axis=0, weights=weighted_set[1].flatten())
 
         return Compare.computeOnAllData(self.Q, self.W, mean_on_coreset) / self.opt_value - 1,\
                time.time() - start_time + weighted_set[2]
 
     def applySamplingAndAttainError(self, alg, sample_size, sensitivity=None):
-        if alg < 2:
+        if alg < 2 and not self.compare_SVD:
             results = [self.computeError(self.sampling_algorithms[0](sample_size, sensitivity))
                        for i in range(Utils.REPS)]
             return np.mean([results[i][0] for i in range(len(results))]), \
                                     np.mean([results[i][1] for i in range(len(results))])
         else:
-            return self.computeError(self.sampling_algorithms[alg - 1](sample_size))
+            return self.computeError(self.sampling_algorithms[alg - 1 if not self.compare_SVD else alg](sample_size))
 
     def applyComaprison(self):
-        sensitivity = self.tightBoundSensitivity()
-        all_sensitivity = np.vstack((np.ones(sensitivity.shape), sensitivity))
+
         mean_error = np.empty((len(self.legend), Utils.NUM_SAMPLES))
         mean_time = np.empty((len(self.legend), Utils.NUM_SAMPLES))
         samples = Utils.generateSampleSizes(self.P.shape[0])
@@ -113,7 +131,7 @@ class Compare(object):
     @staticmethod
     def main():
         file_name = 'Synthetic.npy'
-        main_runner = Compare(file_name)
+        main_runner = Compare(file_name, compare_SVD, k)
         main_runner.applyComaprison()
 
 if __name__ == '__main__':

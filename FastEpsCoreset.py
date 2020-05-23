@@ -220,6 +220,7 @@ def sparseEpsCoreset(Q, m, eps, faster=True):
     else:
         S = P
         u= np.multiply(u.flatten(), 2 / row_norms.flatten())
+        idxs = np.arange(S.shape[0]).flatten()
 
     # u = np.multiply(u.flatten(), 2 / (row_norms.flatten() if not faster else row_norms.flatten()[idxs.flatten()]))
     return S, u * sum_of_m, time.time() - start_time, idxs

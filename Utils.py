@@ -25,11 +25,24 @@ def getNormalizedWeightedSet(P, weights):
     return (P - mu) / sigma, new_weights, mu, sigma
 
 
-def generateSampleSizes(n):
+def generateSampleSizes(n, is_svd=False):
     global NUM_SAMPLES
-    min_size = int(np.log(n) ** 2)
-    max_size = n // 20
+    if not is_svd:
+        min_size = 100    #int(np.log(n) ** 2)
+        max_size = 1000  #np.sqrt(n) * 30
+    else:
+        min_size = 10
+        max_size = 100
     return np.geomspace(start=min_size, stop=max_size, num=NUM_SAMPLES, dtype=np.int)
+
+
+def preprocessDataForSVDComaprison(P, k):
+    U, D, _ = np.linalg.svd(P, full_matrices=False)
+    D_k = D[k:]
+    U[k:, k:] = np.multiply(U[k:, k:], D_k[np.newaxis, :]) / np.linalg.norm(D_k, ord=2)
+    V = np.hstack((U, np.ones((U.shape[0], 1)))) if False else U
+    Q = np.einsum('ij...,i...->ij...', V, V).flatten().reshape(V.shape[0], V.shape[1] ** 2)
+    return Q
 
 
 def createDirectory(directory_name):

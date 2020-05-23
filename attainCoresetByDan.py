@@ -63,6 +63,9 @@ def attainCoresetByDanV2(P, u, eps):
 
 
 def attainCoresetByDanV1(P, u, eps):
+    ts = time.time()
+    if u.ndim < 2:
+        u = u[:, np.newaxis]
     E_u = np.sum(np.multiply(P, u), axis=0)
     x = np.sum(np.multiply(u.flatten(), np.sqrt(np.sum((P - E_u) ** 2, axis=1))))
     lifted_P = np.hstack((P - E_u, x * np.ones((P.shape[0], 1))))
@@ -101,7 +104,7 @@ def attainCoresetByDanV1(P, u, eps):
 
     S = P[np.where(w > 0)[0], :]
 
-    return S, w[np.where(w > 0)[0]]
+    return S, w[np.where(w > 0)[0]], time.time() - ts, np.where(w > 0)[0]
 
 
 if __name__ == '__main__':
