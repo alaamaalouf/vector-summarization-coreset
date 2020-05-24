@@ -19,6 +19,9 @@ class Compare(object):
 
     def __init__(self, file_name, compare_SVD=False, k=2):
         self.P = Utils.readDataset(file_name)
+        self.k = k
+        self.compare_SVD = compare_SVD
+        print('n = {}, d = {}'.format(self.P.shape[0], self.P.shape[1]))
         self.weights = np.ones((self.P.shape[0], ))
         if not self.compare_SVD:
             self.Q, self.W, self.mu, self.sigma = Utils.getNormalizedWeightedSet(self.P, self.weights)
@@ -33,8 +36,10 @@ class Compare(object):
         Utils.createDirectory(self.file_name)
         self.sampling_algorithms = [
             lambda sample_size, sensitivity: self.computeCoreset(self.Q, sensitivity, sample_size),
-            lambda sample_size: updated_cara(self.Q, self.W, sample_size),
-            lambda sample_size: sparseEpsCoreset(self.Q, self.W, 1.0/sample_size)
+            lambda sample_size: updated_cara(self.Q, self.W, None),
+            lambda sample_size: attainCoresetByDanV1(self.Q, self.W, 1.0/sample_size),
+            lambda sample_size: sparseEpsCoreset(self.Q, self.W, 1.0/sample_size, faster=False),
+            lambda sample_size: sparseEpsCoreset(self.Q, self.W, 1.0 / sample_size, faster=True)
         ]
 
         if self.compare_SVD:
@@ -119,20 +124,56 @@ class Compare(object):
 
         mean_error = np.empty((len(self.legend), Utils.NUM_SAMPLES))
         mean_time = np.empty((len(self.legend), Utils.NUM_SAMPLES))
-        samples = Utils.generateSampleSizes(self.P.shape[0])
+        samples = Utils.generateSampleSizes(self.P.shape[0], self.compare_SVD)
 
+        if not self.compare_SVD:
+            sensitivity = self.tightBoundSensitivity()
+            all_sensitivity = np.vstack((np.ones(sensitivity.shape), sensitivity))
+            mean_error_cara, mean_time_cara = self.applySamplingAndAttainError(2, 0, None)
+
+        
         for idx, sample_size in enumerate(samples):
+            print('Sample size: {}'.format(sample_size))
             for alg in range(len(self.legend)):
-                mean_error[alg, idx], mean_time[alg, idx] = self.applySamplingAndAttainError(alg, sample_size,
-                                                                                             all_sensitivity[alg, :]
-                                                                                             if alg < 2 else None)
+                if alg != 2 or self.compare_SVD:
+                    mean_error[alg, idx], mean_time[alg, idx] = \
+                        self.applySamplingAndAttainError(alg, sample_size if not self.compare_SVD
+                        else 25 * self.k**2 * sample_size ** 2,  all_sensitivity[alg, :]
+                        if alg < 2 and not self.compare_SVD else None)
+                else:
+                    mean_error[alg, idx], mean_time[alg,idx] = mean_error_cara, mean_time_cara
 
-        np.savez(r'results//{}//Results_{}.npz'.format(self.file_name, self.file_name),
-                 mean_error=mean_error, mean_time=mean_time)
+        file_path = r'results/{}/Results_{}.npz'.format(self.file_name, self.file_name)
+        if self.compare_SVD:
+            file_path = file_path.replace('.npz', '_SVD.npz')
+        np.savez(file_path, mean_error=mean_error, mean_time=mean_time)
+
+        file_path = r'results/{}/{}-{}.pdf'.format('Synthetic', 'Synthetic', 'error')
+        self.graph_plotter.plotGraph(samples, mean_error, self.legend,
+                                     'Synthetic', 'sample size', r'$\varepsilon$', file_path)
+
+
+        file_path = r'results/{}/{}-{}.pdf'.format('Synthetic', 'Synthetic', 'time')
+        self.graph_plotter.plotGraph(samples, mean_time, self.legend, 'Synthetic', 'sample size', 'Overall time (secs)', file_path)
+
+
+
+        print('******************** ERROR *********************')
+        print('first row: Uniform\n second row: sensitivity\n third row: Cara\n forth row: Us')
+        print(mean_error)
+        print('******************** TIME ************************')
+        print(mean_time)
 
 
     @staticmethod
     def main():
+        n = 100000
+        d = 5
+        k = 2
+        A = np.random.randn(n, d)
+        compare_SVD = False
+
+        np.save(r'datasets/Synthetic.npy', A)
         file_name = 'Synthetic.npy'
         main_runner = Compare(file_name, compare_SVD, k)
         main_runner.applyComaprison()
