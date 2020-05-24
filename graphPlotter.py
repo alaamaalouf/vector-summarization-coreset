@@ -100,3 +100,6 @@ if __name__ == '__main__':
     graph_plotter = GraphPlotter()
     file_path = r'results/{}/{}-{}.pdf'.format('Synthetic', 'Synthetic', 'error')
     graph_plotter.plotGraph(x_values, errors, legend, 'Synthetic', 'sample size', r'$\varepsilon$', file_path)
+
+    file_path = r'results/{}/{}-{}.pdf'.format('Synthetic', 'Synthetic', 'time')
+    graph_plotter.plotGraph(x_values, times, legend, 'Synthetic', 'sample size', 'Overall Time (secs)', file_path)

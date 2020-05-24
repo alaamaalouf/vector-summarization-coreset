@@ -8,6 +8,7 @@ from AlaaBoost import updated_cara
 # import FOR17
 from FastEpsCoreset import sparseEpsCoreset
 from attainCoresetByDan import attainCoresetByDanV1
+from graphPlotter import GraphPlotter
 
 
 class Compare(object):
@@ -42,6 +43,8 @@ class Compare(object):
             self.opt_value = Compare.computeOptValueSVD(self.P, self.W, self.k)
         else:
             self.opt_value = Compare.computeOptValue(self.Q, self.W)
+
+        self.graph_plotter = GraphPlotter()
 
     def tightBoundSensitivity(self):
         return np.multiply(self.W / np.sum(self.W), (1 + np.sum(self.Q ** 2, 1) / self.sigma))
