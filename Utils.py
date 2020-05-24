@@ -6,6 +6,15 @@ import os
 REPS = 1
 NUM_SAMPLES = 10
 
+COLOR_MATCHING = {
+    'Uniform Sampling': 'purple',
+    'Sensitivity Sampling': 'blue',
+    'Caratheodory': 'cyan',
+    'Dan ICML2016': 'green',
+    'Our slow coreset': 'orange',
+    'Our fast Coreset': 'red'
+}
+
 
 def readDataset(file_name):
     file_path = r'datasets\\' + file_name
